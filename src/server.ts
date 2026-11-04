@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import { prisma } from "./lib/prisma";
 
 const app = express();
 const PORT = 3001;
@@ -12,6 +13,32 @@ app.get("/api/health", (req, res) => {
   res.json({
     message: "FamilySplit backend is running!",
   });
+});
+
+app.post("/api/users", async (req, res) => {
+  try {
+    const { name, email } = req.body;
+    if (!name || !email) {
+      return res.status(400).json({
+        message: "Name and email are required",
+      });
+    }
+
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email,
+      },
+    });
+
+    return res.status(201).json(user);
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      message: "Failed to create user",
+    });
+  }
 });
 
 // POST API - Test registration
@@ -34,6 +61,6 @@ app.post("/api/register", (req, res) => {
 });
 
 // Start backend server
-app.listen(PORT, () => {
+app.listen(PORT, () => { 
   console.log(`Server running on http://localhost:${PORT}`);
 });

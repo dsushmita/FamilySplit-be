@@ -1,11 +1,12 @@
 import { Request, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { Prisma } from "../generated/prisma/client";
+import { createNewUser, getAllUsers } from "../services/user.service";
 
 //get all the list of data of the table
 export const getUsers = async (req: Request, res: Response) => {
   try {
-    const users = await prisma.user.findMany();
+    const users = getAllUsers();
     return res.status(200).json(users);
   } catch (error) {
     console.log(error);
@@ -15,14 +16,14 @@ export const getUsers = async (req: Request, res: Response) => {
   }
 };
 
-//step to create the User         
+//step to create the User
 export const createUser = async (req: Request, res: Response) => {
   try {
     const { name, email } = req.body;
 
     if (
-      typeof name! == "string" ||
-      typeof email! == "string" ||
+      typeof name !== "string" ||
+      typeof email !== "string" ||
       !name.trim() ||
       !email.trim()
     ) {
@@ -38,16 +39,11 @@ export const createUser = async (req: Request, res: Response) => {
         message: "Invalid email format",
       });
     }
-      const user = await prisma.user.create({
-          data: {
-              name: name.trim(),
-              email: email.trim().toLowerCase()
-          }
-      });
-      return res.status(201).json(user);
-      
+    const user = await createNewUser(name.trim(), email.trim().toLowerCase());
+
+    return res.status(201).json(user);
   } catch (error) {
-      if (
+    if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
@@ -55,10 +51,9 @@ export const createUser = async (req: Request, res: Response) => {
         message: "Email already exists",
       });
     }
-      console.log("error");
-      return res.status(500).json({
-          message: "Failed to create user"
-      })
+    console.log("error");
+    return res.status(500).json({
+      message: "Failed to create user",
+    });
   }
 };
-

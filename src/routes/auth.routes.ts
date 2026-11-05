@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { register } from "../controllers/auth.controller";
+import { login, register } from "../controllers/auth.controller";
 
 const router = Router()
 
@@ -9,6 +9,7 @@ const router = Router()
 
 //here we are using post method for registering users and that redirect to that register function and post express function have 2 paramater
 router.post("/register", register);
+router.post("/login", login)
 
 export default router;
 

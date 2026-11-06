@@ -61,7 +61,7 @@ export const authenticate = (req: Request, res: Response, next: NextFunction) =>
 // };
 
         //else store the authencated users
-        res.locals.userId = decoded.userId;  //does res local have there own id
+        res.locals.userId = decoded.userId;  // res local doesnot  have there own id, here we are adding new properties userId
         
         //continue to the next middleware or controller
         next(); //does this next means go to next function

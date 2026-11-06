@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
-import userRoutes from "./routes/user.routes";
 import authRoutes from "./routes/auth.routes";
+import protectedRoutes from "./routes/protected.routes";
 
 
 const app = express();
@@ -10,6 +10,7 @@ const PORT = 3001;
 app.use(cors({ origin: "http://localhost:5173" }));
 
 app.use(express.json());
+app.use("/api", protectedRoutes);
 
 
 //after declaring service where db functions works and declaring controller where request things works,

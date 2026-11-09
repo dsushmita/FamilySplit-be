@@ -13,9 +13,40 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(uuid())
+  id           String        @id @default(uuid())
   name         String
-  email        String   @unique
+  email        String        @unique
   passwordHash String?
-  createdAt    DateTime @default(now())
+  createdAt    DateTime      @default(now())
+//for creating the group
+  createdGroups Group[]       @relation("GroupCreator") //itis this means vreatedgroup key call group array
+  memberships   GroupMember[]
+}
+
+model Group {
+  id        String        @id @default(uuid())
+  name      String
+  createdAt DateTime      @default(now())
+
+  // User who created the group.
+  createdById String
+  createdBy   User @relation("GroupCreator", fields: [createdById], references: [id])
+
+  // Users who belong to this group.
+  members GroupMember[]
+}
+
+model GroupMember {
+  id       String   @id @default(uuid())
+  joinedAt DateTime @default(now())
+
+  // Link each membership to a user.
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade) //if parent record delete child record delete
+  // Link each membership to a group.
+  groupId String
+  group   Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  // Prevent the same user from joining a group twice.
+  @@unique([userId, groupId])
 }

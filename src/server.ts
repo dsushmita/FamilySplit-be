@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import authRoutes from "./routes/auth.routes";
 import protectedRoutes from "./routes/protected.routes";
+import groupRoutes from "./routes/group.routes";
 
 
 const app = express();
@@ -17,6 +18,9 @@ app.use("/api", protectedRoutes);
 // and after creating routes to defined path
 //we finally call in the server page ,, the entry page ,, where we have created express server
 app.use("/api/auth", authRoutes);
+
+// Register the Group API.
+app.use("/api/groups", groupRoutes);
 
 // Start backend server
 app.listen(PORT, () => { 

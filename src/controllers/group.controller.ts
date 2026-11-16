@@ -116,7 +116,7 @@ export const addMemberToGroup = async (req: Request, res: Response) => {
   } catch (error) {
     // 8. Handle known service errors.
     if (error instanceof Error) {
-      switch (error.message) {
+      switch (error.message?.toUpperCase()) {
         case "GROUP_NOT_FOUND":
           return res.status(404).json({ message: "Group not found" });
 
@@ -128,6 +128,8 @@ export const addMemberToGroup = async (req: Request, res: Response) => {
 
         case "ALREADY_MEMBER":
           return res.status(409).json({ message: "User is already a group member" });
+        default:
+          return   res.status(409).json({ message: "Unknown error" });
       }
     }
   }

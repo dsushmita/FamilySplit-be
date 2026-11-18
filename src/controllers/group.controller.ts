@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import {
   addGroupMember,
   createNewGroup,
+  getGroupMembers,
   getUserGroups,
 } from "../services/group.service";
 
@@ -186,3 +187,52 @@ req.body → Data sent by the frontend.
 req.headers → Metadata such as the JWT authorization header\
 res.locals → Data shared by Express middleware with subsequent handlers.
  */
+
+
+
+export const getMembers = async (req: Request, res: Response) => {
+  try {
+    // Get the logged-in user's ID from JWT middleware
+    const userId = res.locals.userId;
+
+    // Get the group ID from the URL
+    const groupId = req.params.groupId;
+
+    // Check authentication
+    if (typeof userId !== "string") {
+      return res.status(401).json({
+        message: "Authentication required",
+      });
+    }
+
+    // Check group ID
+    if (typeof groupId !== "string" || !groupId.trim()) {
+      return res.status(400).json({
+        message: "Group ID is required",
+      });
+    }
+
+    // Call the service to retrieve group members
+    const members = await getGroupMembers(groupId, userId);
+
+    return res.status(200).json({
+      message: "Group members retrieved successfully",
+      members,
+    });
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === "GROUP_ACCESS_DENIED"
+    ) {
+      return res.status(403).json({
+        message: "You are not a member of this group",
+      });
+    }
+
+    console.error("Get group members error:", error);
+
+    return res.status(500).json({
+      message: "Failed to retrieve group members",
+    });
+  }
+};

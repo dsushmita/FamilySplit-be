@@ -89,3 +89,43 @@ export const addGroupMember = async (
   //create the membership
   return await prisma.groupMember.create({ data: { userId: user.id, groupId, }, include: { user: { select: { id: true, name: true, email:true}}} })
 };
+
+export const getGroupMembers = async (
+  groupId: string,
+  userId: string
+) => {
+  // Check whether the logged-in user belongs to this group
+  const membership = await prisma.groupMember.findUnique({
+    where: {
+      userId_groupId: {
+        userId,
+        groupId,
+      },
+    },
+  });
+
+  if (!membership) {
+    throw new Error("GROUP_ACCESS_DENIED");
+  }
+
+  // Get all members of this group
+  return await prisma.groupMember.findMany({
+    where: {
+      groupId,
+    },
+    select: {
+      id: true,
+      joinedAt: true,
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+    },
+    orderBy: {
+      joinedAt: "asc",
+    },
+  });
+};

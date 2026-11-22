@@ -21,6 +21,10 @@ model User {
 //for creating the group
   createdGroups Group[]       @relation("GroupCreator") //itis this means vreatedgroup key call group array
   memberships   GroupMember[]
+
+  // Expenses this user paid for, and their share of expenses.
+  paidExpenses  Expense[]      @relation("ExpensePayer")
+  expenseSplits ExpenseSplit[]
 }
 
 model Group {
@@ -34,6 +38,9 @@ model Group {
 
   // Users who belong to this group.
   members GroupMember[]
+
+  // Expenses recorded in this group.
+  expenses Expense[]
 }
 
 model GroupMember {

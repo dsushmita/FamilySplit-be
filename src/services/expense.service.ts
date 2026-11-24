@@ -115,61 +115,6 @@ export type CreateExpenseInput = {
   splitBetween?: string[]; // user IDs who share the cost; defaults to every group member
 };
 
-// Create an expense in a group and split it equally between people.
-export const createExpense = async (input: CreateExpenseInput) => {
-  const { groupId, currentUserId, description } = input;
-
-  // 1. Only members of the group can add expenses.
-  await ensureGroupMember(groupId, currentUserId);
-
-  // 2. Convert the amount to cents (also validates it).
-  const totalCents = toCents(input.amount);
-
-  // 3. Get all member IDs of this group, so we can check payer and participants.
-  const members = await prisma.groupMember.findMany({
-    where: { groupId },
-    select: { userId: true },
-  });
-  const memberIds = new Set(members.map((member) => member.userId));
-
-  // 4. Payer: whoever the frontend sent, or the logged-in user. Must be a member.
-  const paidById = input.paidById ?? currentUserId;
-  if (!memberIds.has(paidById)) {
-    throw new Error("PAYER_NOT_MEMBER");
-  }
-
-  // 5. Participants: the list sent, or everyone in the group.
-  //    new Set(...) removes duplicate IDs so nobody is charged twice.
-  const participantIds = input.splitBetween?.length
-    ? [...new Set(input.splitBetween)]
-    : [...memberIds];
-
-  if (participantIds.some((id) => !memberIds.has(id))) {
-    throw new Error("PARTICIPANT_NOT_MEMBER");
-  }
-
-  // 6. Work out each person's share.
-  const shares = splitEqually(totalCents, participantIds);
-
-  // 7. Save the expense AND its splits in one query.
-  //    Nested create is atomic: if any split fails, the expense is not saved either.
-  return await prisma.expense.create({
-    data: {
-      description,
-      amount: fromCents(totalCents),
-      group: { connect: { id: groupId } },
-      paidBy: { connect: { id: paidById } },
-      splits: {
-        create: shares.map((share) => ({
-          amount: fromCents(share.cents),
-          user: { connect: { id: share.userId } },
-        })),
-      },
-    },
-    select: expenseSelect,
-  });
-};
-
 // Get all expenses of a group, newest first.
 export const getGroupExpenses = async (groupId: string, userId: string) => {
   await ensureGroupMember(groupId, userId);

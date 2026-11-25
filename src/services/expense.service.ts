@@ -1,5 +1,3 @@
-
-
 /**
  * EXPENSE SERVICE
  * ---------------
@@ -16,6 +14,9 @@
  *   10050     -> "100.50"
  */
 
+import { Prisma } from "../generated/prisma/client";
+import { prisma } from "../lib/prisma";
+
 // Largest value that fits in the database column Decimal(12, 2) -> 9,999,999,999.99
 const MAX_AMOUNT_CENTS = 999_999_999_999;
 
@@ -24,7 +25,8 @@ const MAX_AMOUNT_CENTS = 999_999_999_999;
 // ---------------------------------------------------------------------------
 
 // Convert user input like "100.50" or 100.5 into cents (10050).
-// Throws INVALID_AMOUNT if the value is not a positive amount with max 2 decimals.
+// Throws INVALID_AMOUNT if the value is not a positive amount with max 2 decimals,
+// or if it is too big for the database column.
 const toCents = (amount: string | number): number => {
   const value = String(amount).trim();
 
@@ -106,14 +108,76 @@ const expenseSelect = {
 // Service functions (exported, used by the controller)
 // ---------------------------------------------------------------------------
 
-export type CreateExpenseInput = {
-  groupId: string;
-  currentUserId: string; // logged-in user (from JWT, res.locals.userId)
-  description: string;
-  amount: string | number; // e.g. "1200.50"
-  paidById?: string; // who paid; defaults to the logged-in user
-  splitBetween?: string[]; // user IDs who share the cost; defaults to every group member
+// Create an expense and split it equally between ALL group members.
+// Used by: POST /api/groups/:groupId/expenses
+export const createExpense = async (
+  groupId: string,
+  paidById: string,
+  description: string,
+  amount: number,
+  currentUserId: string
+) => {
+  // 1. Check whether the group exists (and load its members)
+  const group = await prisma.group.findUnique({
+    where: { id: groupId },
+    include: { members: true },
+  });
+
+  if (!group) {
+    throw new Error("GROUP_NOT_FOUND");
+  }
+
+  // 2. Check whether the logged-in user belongs to the group
+  const isMember = group.members.some((member) => member.userId === currentUserId);
+
+  if (!isMember) {
+    throw new Error("NOT_GROUP_MEMBER");
+  }
+
+  // 3. Check whether the payer belongs to the group
+  const isPayerMember = group.members.some((member) => member.userId === paidById);
+
+  if (!isPayerMember) {
+    throw new Error("PAYER_NOT_GROUP_MEMBER");
+  }
+
+  // 4. Validate description
+  if (typeof description !== "string" || !description.trim()) {
+    throw new Error("INVALID_DESCRIPTION");
+  }
+
+  // 5. Validate amount and convert it to cents (throws INVALID_AMOUNT if bad or too big)
+  const totalCents = toCents(amount);
+
+  if (group.members.length === 0) {
+    throw new Error("NO_GROUP_MEMBERS");
+  }
+
+  // 6. Calculate equal shares in cents.
+  // Sort by user ID so the leftover cents always go to the same people.
+  const userIds = group.members.map((member) => member.userId).sort();
+  const splits = splitEqually(totalCents, userIds).map(({ userId, cents }) => ({
+    userId,
+    amount: new Prisma.Decimal(fromCents(cents)),
+  }));
+
+  // 7. Save expense and splits in one database operation
+  return await prisma.expense.create({
+    data: {
+      description: description.trim(),
+      amount: new Prisma.Decimal(fromCents(totalCents)),
+      groupId,
+      paidById,
+      splits: { create: splits },
+    },
+    select: expenseSelect,
+  });
 };
+
+// ---------------------------------------------------------------------------
+// Not connected to a route yet — ready for the next features
+// (expense list, expense details, delete expense, group balances).
+// ---------------------------------------------------------------------------
 
 // Get all expenses of a group, newest first.
 export const getGroupExpenses = async (groupId: string, userId: string) => {
@@ -224,123 +288,4 @@ export const getGroupBalances = async (groupId: string, userId: string) => {
       balance: fromCents(paid - owed),
     };
   });
-};
-
-import { Prisma } from "../generated/prisma/client";
-import { prisma } from "../lib/prisma";
-
-export const createExpense = async (
-  groupId: string,
-  paidById: string,
-  description: string,
-  amount: number,
-  currentUserId: string
-) => {
-  // 1. Check whether the group exists
-  const group = await prisma.group.findUnique({
-    where: { id: groupId },
-    include: {
-      members: true,
-    },
-  });
-
-  if (!group) {
-    throw new Error("GROUP_NOT_FOUND");
-  }
-
-  // 2. Check whether the logged-in user belongs to the group
-  const isMember = group.members.some(
-    (member) => member.userId === currentUserId
-  );
-
-  if (!isMember) {
-    throw new Error("NOT_GROUP_MEMBER");
-  }
-
-  // 3. Check whether the payer belongs to the group
-  const isPayerMember = group.members.some(
-    (member) => member.userId === paidById
-  );
-
-  if (!isPayerMember) {
-    throw new Error("PAYER_NOT_GROUP_MEMBER");
-  }
-
-  // 4. Validate description
-  if (typeof description !== "string" || !description.trim()) {
-    throw new Error("INVALID_DESCRIPTION");
-  }
-
-  // 5. Validate amount
-  if (
-    typeof amount !== "number" ||
-    !Number.isFinite(amount) ||
-    amount <= 0 ||
-    !Number.isSafeInteger(Math.round(amount * 100)) ||
-    Math.abs(amount * 100 - Math.round(amount * 100)) > 1e-7
-  ) {
-    throw new Error("INVALID_AMOUNT");
-  }
-
-  // Convert dollars into cents
-  const totalCents = Math.round(amount * 100);
-
-  const memberCount = group.members.length;
-
-  if (memberCount === 0) {
-    throw new Error("NO_GROUP_MEMBERS");
-  }
-
-  // 6. Calculate equal shares in cents
-  const baseShare = Math.floor(totalCents / memberCount);
-  const remainder = totalCents % memberCount;
-
-  // Sort members to make remainder distribution consistent
-  const members = [...group.members].sort((a, b) =>
-    a.userId.localeCompare(b.userId)
-  );
-
-  const splits = members.map((member, index) => {
-    const shareCents = baseShare + (index < remainder ? 1 : 0);
-
-    return {
-      userId: member.userId,
-      amount: new Prisma.Decimal(shareCents).div(100),
-    };
-  });
-
-  // 7. Save expense and splits in one database operation
-  const expense = await prisma.expense.create({
-    data: {
-      description: description.trim(),
-      amount: new Prisma.Decimal(totalCents).div(100),
-      groupId,
-      paidById,
-      splits: {
-        create: splits,
-      },
-    },
-    include: {
-      paidBy: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      },
-      splits: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
-        },
-      },
-    },
-  });
-
-  return expense;
 };

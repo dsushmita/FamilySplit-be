@@ -3,7 +3,7 @@ import cors from "cors";
 import authRoutes from "./routes/auth.routes";
 import protectedRoutes from "./routes/protected.routes";
 import groupRoutes from "./routes/group.routes";
-import expenseRoutes from "./routes/expense.routes";
+import expenseRoutes, { expenseListRouter } from "./routes/expense.routes";
 
 
 const app = express();
@@ -25,6 +25,9 @@ app.use("/api/groups", groupRoutes);
 
 //for expense
 app.use("/api/groups", expenseRoutes);
+app.use("/api/expenses", expenseListRouter);
+
+app.use("/api/expenses", expenseListRouter);
 
 
 

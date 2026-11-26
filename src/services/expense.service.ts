@@ -289,3 +289,19 @@ export const getGroupBalances = async (groupId: string, userId: string) => {
     };
   });
 };
+
+
+// Get the newest expenses from ALL groups the user belongs to.
+// Used by: GET /api/expenses/recent (Dashboard "Recent Expenses")
+export const getRecentExpenses = async (userId: string) => {
+  return await prisma.expense.findMany({
+    // only expenses in groups where this user is a member
+    where: { group: { members: { some: { userId } } } },
+    select: {
+      ...expenseSelect,                          // same fields as other expense APIs
+      group: { select: { id: true, name: true } }, // + group name for the card
+    },
+    orderBy: { createdAt: "desc" }, // newest first
+    take: 5,                        // only the latest 5
+  });
+};

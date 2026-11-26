@@ -1,6 +1,6 @@
 
 import type { Request, Response } from "express";
-import { createExpense } from "../services/expense.service";
+import { createExpense, getRecentExpenses } from "../services/expense.service";
 
 export const addExpense = async (req: Request, res: Response) => {
   try {
@@ -105,5 +105,27 @@ export const addExpense = async (req: Request, res: Response) => {
     return res.status(500).json({
       message: "Failed to create expense",
     });
+  }
+};
+
+
+export const getRecent = async (req: Request, res: Response) => {
+  try {
+    // Get logged-in user ID from JWT middleware
+    const userId = res.locals.userId;
+
+    if (typeof userId !== "string") {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+
+    const expenses = await getRecentExpenses(userId);
+
+    return res.status(200).json({
+      message: "Recent expenses retrieved successfully",
+      expenses,
+    });
+  } catch (error) {
+    console.error("Get recent expenses error:", error);
+    return res.status(500).json({ message: "Failed to fetch recent expenses" });
   }
 };

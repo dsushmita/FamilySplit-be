@@ -1,6 +1,6 @@
 
 import type { Request, Response } from "express";
-import { createExpense, getRecentExpenses } from "../services/expense.service";
+import { createExpense, getMyBalances, getRecentExpenses } from "../services/expense.service";
 
 export const addExpense = async (req: Request, res: Response) => {
   try {
@@ -127,5 +127,25 @@ export const getRecent = async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Get recent expenses error:", error);
     return res.status(500).json({ message: "Failed to fetch recent expenses" });
+  }
+};
+export const getBalances = async (req: Request, res: Response) => {
+  try {
+    // Get logged-in user ID from JWT middleware
+    const userId = res.locals.userId;
+
+    if (typeof userId !== "string") {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+
+    const balances = await getMyBalances(userId);
+
+    return res.status(200).json({
+      message: "Balances retrieved successfully",
+      ...balances, // groups, toPay, toReceive, netBalance
+    });
+  } catch (error) {
+    console.error("Get balances error:", error);
+    return res.status(500).json({ message: "Failed to fetch balances" });
   }
 };

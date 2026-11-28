@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authenticate } from "../middleware/auth.middleware";
-import { addExpense, getRecent } from "../controllers/expense.controller";
+import { addExpense, getBalances, getRecent } from "../controllers/expense.controller";
 
 
 const router = Router();
@@ -15,3 +15,6 @@ export const expenseListRouter = Router();
 
 // Latest expenses from all my groups  ->  GET /api/expenses/recent
 expenseListRouter.get("/recent", authenticate, getRecent);
+
+// My balances in all groups  ->  GET /api/expenses/balances
+expenseListRouter.get("/balances", authenticate, getBalances);

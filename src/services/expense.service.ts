@@ -305,3 +305,57 @@ export const getRecentExpenses = async (userId: string) => {
     take: 5,                        // only the latest 5
   });
 };
+// My balance in every group I belong to, plus overall totals.
+// Used by: GET /api/expenses/balances (Dashboard cards)
+export const getMyBalances = async (userId: string) => {
+  // Load 3 lists at the same time
+  const [memberships, paidExpenses, myShares] = await Promise.all([
+    // groups I belong to
+    prisma.groupMember.findMany({ where: { userId }, select: { groupId: true } }),
+    // expenses I paid
+    prisma.expense.findMany({ where: { paidById: userId }, select: { groupId: true, amount: true } }),
+    // my share of every expense (with its group)
+    prisma.expenseSplit.findMany({
+      where: { userId },
+      select: { amount: true, expense: { select: { groupId: true } } },
+    }),
+  ]);
+
+  // groupId -> my balance in cents. Start every group at 0.
+  const balances = new Map<string, number>();
+  for (const { groupId } of memberships) {
+    balances.set(groupId, 0);
+  }
+
+  // + what I paid
+  for (const expense of paidExpenses) {
+    if (balances.has(expense.groupId)) {
+      balances.set(expense.groupId, (balances.get(expense.groupId) ?? 0) + decimalToCents(expense.amount));
+    }
+  }
+
+  // − my shares
+  for (const share of myShares) {
+    const groupId = share.expense.groupId;
+    if (balances.has(groupId)) {
+      balances.set(groupId, (balances.get(groupId) ?? 0) - decimalToCents(share.amount));
+    }
+  }
+
+  // Add up the totals for the Dashboard cards
+  let toPayCents = 0;
+  let toReceiveCents = 0;
+
+  const groups = [...balances].map(([groupId, cents]) => {
+    if (cents > 0) toReceiveCents += cents;
+    if (cents < 0) toPayCents += -cents;
+    return { groupId, balance: fromCents(cents) };
+  });
+
+  return {
+    groups, // [{ groupId, balance: "106.00" }]
+    toPay: fromCents(toPayCents),
+    toReceive: fromCents(toReceiveCents),
+    netBalance: fromCents(toReceiveCents - toPayCents),
+  };
+};
